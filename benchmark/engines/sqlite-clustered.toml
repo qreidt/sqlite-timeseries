@@ -1,0 +1,38 @@
+# Plain SQLite, clustered: rows stored in (tags_id, time) order in a WITHOUT ROWID table.
+#
+# A second baseline: per-host range scans read neighbouring pages, and there is one fewer index to
+# maintain. It needs (tags_id, time) to be unique, which holds for the cpu-only and devops use
+# cases. Template placeholders are listed in harness/src/engine.rs.
+
+name = "sqlite-clustered"
+description = "WITHOUT ROWID table, primary key (tags_id, time) + (time) index"
+time_unit = "us"
+
+pragmas = [
+  "journal_mode = WAL",
+  "synchronous = FULL",
+  "cache_size = -262144",
+  "temp_store = MEMORY",
+]
+
+create_table = """
+CREATE TABLE {table} (
+  time    INTEGER NOT NULL,
+  tags_id INTEGER NOT NULL,
+  {field_columns},
+  PRIMARY KEY (tags_id, time)
+) WITHOUT ROWID;
+"""
+
+setup = """
+CREATE INDEX {table}_time ON {table} (time DESC);
+"""
+
+post_load = """
+ANALYZE {table};
+ANALYZE tags;
+"""
+
+compress = ""
+
+bucket = "({time} / {width}) * {width}"

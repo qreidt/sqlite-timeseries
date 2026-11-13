@@ -1,0 +1,8 @@
+# Generated data, databases and results (can be many GB)
+/data/
+/dbs/
+/results/
+/config.local.env
+
+# Rust build output
+/harness/target/

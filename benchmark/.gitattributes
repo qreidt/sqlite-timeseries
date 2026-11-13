@@ -1,0 +1,6 @@
+# Scripts run in Linux/WSL: keep LF line endings even when Git on Windows converts text files.
+*.sh   text eol=lf
+*.env  text eol=lf
+*.toml text eol=lf
+*.yml  text eol=lf
+Dockerfile text eol=lf

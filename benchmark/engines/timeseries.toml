@@ -1,0 +1,62 @@
+# The time-series extension (this project).
+#
+# The extension does not exist yet, so this SQL follows the API in the requirement docs
+# (docs/04-hypertables.md, docs/05-data-lifecycle.md, docs/09-policies-jobs-introspection.md).
+# Update it as the real API lands; the harness itself needs no changes. Template placeholders are
+# listed in harness/src/engine.rs.
+#
+# Run it with:  scripts/04-sqlite.sh timeseries   (set EXTENSION_PATH in config.env)
+# or directly:  tsbench load --engine engines/timeseries.toml --extension path/to/libtimeseries.so ...
+
+name = "timeseries"
+description = "time-series extension: hypertable, 12h chunks, compression with segment_by tags_id"
+
+# Path to the loadable extension. Leave empty and pass --extension (the scripts use EXTENSION_PATH).
+extension = ""
+# Entry point, if SQLite cannot derive it from the file name (BD-02: sqlite3_timeseries_init).
+extension_entry_point = ""
+
+time_unit = "us"
+chunk_interval = "12h"
+
+# Sealed blocks live in a directory named after the database (BF-01); sizes include it.
+block_dir = true
+
+pragmas = [
+  "journal_mode = WAL",
+  "synchronous = FULL",
+  "cache_size = -262144",
+  "temp_store = MEMORY",
+]
+
+# HT-01: create an ordinary table, then convert it.
+create_table = """
+CREATE TABLE {table} (
+  time    INTEGER NOT NULL,
+  tags_id INTEGER NOT NULL,
+  {field_columns}
+);
+"""
+
+# HT-01: create_hypertable(table, time_col, chunk_interval [, options]). An INTEGER interval is in
+# raw units of the time column (docs/02-core-conventions.md). How the time unit is declared is not
+# settled yet; add it to the options when it is.
+# HT-22 indexes time on every chunk by default; HT-23 adds the (tags_id, time) index TSBS uses.
+setup = """
+SELECT create_hypertable('{table}', 'time', {chunk_interval});
+SELECT create_hypertable_index('{table}', '{table}_tags_id_time', 'tags_id, time');
+"""
+
+post_load = """
+ANALYZE tags;
+"""
+
+# LC-05: set_compression(table, segment_by, order_by). LC-06: compress_chunk(chunk).
+# JB-12: timeseries_chunks lists chunks with their status.
+compress = """
+SELECT set_compression('{table}', 'tags_id', 'time');
+SELECT compress_chunk(chunk) FROM timeseries_chunks WHERE hypertable = '{table}' AND status <> 'compressed';
+"""
+
+# QF-05: integer width with an integer time does pure integer bucketing.
+bucket = "time_bucket({width}, {time})"

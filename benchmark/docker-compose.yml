@@ -1,0 +1,39 @@
+# TimescaleDB, plus a "tools" image with TSBS and timescaledb-parallel-copy.
+# The scripts fill in the ${...} variables from config.env (see scripts/lib.sh); use the scripts
+# rather than calling docker compose directly.
+name: tsbench
+
+services:
+  timescaledb:
+    image: ${TIMESCALE_IMAGE:-timescale/timescaledb:2.31.0-pg17}
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bench}
+      # timescaledb-tune runs when the data volume is first created and sizes PostgreSQL for these.
+      TS_TUNE_MEMORY: ${TS_TUNE_MEMORY:-4GB}
+      TS_TUNE_NUM_CPUS: ${TS_TUNE_NUM_CPUS:-4}
+    ports:
+      - "127.0.0.1:${TSDB_PORT:-5432}:5432"
+    volumes:
+      - tsdb-data:/var/lib/postgresql/data
+    shm_size: 1gb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  tools:
+    build: ./docker/tools
+    image: tsbench-tools:local
+    profiles: ["tools"]
+    environment:
+      PGHOST: timescaledb
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:-bench}
+    volumes:
+      - ${DATA_ROOT_ABS:-./data}:/data
+      - ${RESULTS_ROOT_ABS:-./results}:/results
+      - ./docker/tools:/bench:ro
+
+volumes:
+  tsdb-data:

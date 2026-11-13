@@ -1,0 +1,19 @@
+# Risks to spike first
+
+[← Contents](README.md)
+
+Eleven assumptions could each force a redesign, so each gets a throwaway spike before Phase 2. Risks 1 and 2 decide whether the virtual-table design works at all.
+
+| # | Risk | Spike | Fallback if it fails |
+| --- | --- | --- | --- |
+| 1 | `CREATE TABLE` for a new chunk, run from inside the virtual table's write method while the user's INSERT is executing, may fail or invalidate the statement. | Insert rows spanning several new chunk ranges in one statement and in one transaction; check results, rollback and a second connection's view. | Pre-create chunks ahead of time (on registration and in `run_jobs()`); rows outside the created horizon go to a staging table that `run_jobs()` routes later. |
+| 2 | `DROP TABLE` fails with `SQLITE_LOCKED` while any other SELECT on the connection is running, which includes the statement that called `drop_chunks()`. | Call `drop_chunks()` as `SELECT drop_chunks(...)`, inside a transaction, and with another cursor open. | Two-phase drop (LC-02) plus a C/Rust API the host calls outside any statement. |
+| 3 | Per-row cost of returning rows through the virtual table makes large aggregate scans slow. | Compare `SELECT avg(v) ... GROUP BY bucket` over a year of data: virtual table, direct chunk, generated `UNION ALL` view. | Generated view as the analytic read path (500-chunk limit), and steering heavy queries to continuous aggregates. |
+| 4 | Thousands of chunk tables and indexes slow connection open and use memory. | Measure open time and memory at 1,000 and 10,000 chunks. | Larger default chunk intervals, a documented maximum, and a later `merge_chunks()` for old ranges. |
+| 5 | The binding crate cannot provide a writable virtual table, window functions or the needed virtual table extras inside a loadable extension. | Minimal `cdylib` with one window function, one writable virtual table using `sqlite3_vtab_in`, and savepoint hooks. | Raw FFI through `libsqlite3-sys`, or switch to sqlite3_ext. |
+| 6 | Work done by `run_jobs()` from inside a SQL statement commits only when that statement ends, and savepoint release may behave unexpectedly there. | Run two jobs where the second fails; check what is durable after the call and after a crash. | Make the C/Rust API (decision 10) the primary way to run jobs. |
+| 7 | A filter on the bucket column of a real-time aggregate view does not reach the raw scan as a time constraint. | Inspect `EXPLAIN QUERY PLAN` and the constraints seen in `xBestIndex` for typical dashboard queries. | Expose the real-time read as a table-valued function taking explicit `start` and `end`. |
+| 8 | Flushing the write buffer in `xSync` (SE-05) may misbehave alongside savepoints or other virtual tables in the same transaction. | Buffer a multi-chunk insert, mix in savepoints and an FTS5 table, commit, and crash around the commit. | Drop SE-05; inserts write straight to the open chunk. |
+| 9 | Merging buffered rows and many small blocks at read time costs more than the B-tree it replaces. | Benchmark one-day queries with 0, 4 and 16 small blocks per chunk against a plain row chunk. | Lower the compaction threshold, or keep late rows in a row-store side table (LC-13). |
+| 10 | The block-file write protocol loses or half-writes a file on a crash, power loss or full disk on some file systems. | Kill the process and cut power (in a VM) at every protocol step on ext4, APFS and NTFS; check that results match and `ts_check()` is clean. | Use the in-database layout (BF-12) on affected platforms. |
+| 11 | Users back up or copy only the `.db` file and silently lose sealed data. | Test the SQLite CLI `.backup` command, `VACUUM INTO` and common backup tools against a file-backed database, and test `ts_backup()` restores. | Fail loudly when the directory is missing (BF-07) and make `ts_backup()` the documented path. |

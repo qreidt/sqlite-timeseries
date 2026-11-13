@@ -1,0 +1,46 @@
+# Plain SQLite: the baseline the extension has to beat (NF-04 measures against "plain-table throughput").
+#
+# Mirrors the schema TSBS creates for TimescaleDB: one row per reading, an index on
+# (tags_id, time DESC) and one on (time DESC). Template placeholders are listed in
+# harness/src/engine.rs.
+
+name = "sqlite"
+description = "plain rowid table + (tags_id, time) and (time) indexes"
+
+# Unit of the INTEGER time column: s, ms, us or ns. us matches PostgreSQL's timestamptz precision.
+time_unit = "us"
+
+# Run on every connection, in this order. WAL + synchronous=FULL makes each commit durable, like
+# PostgreSQL's default synchronous_commit=on. cache_size is in KiB when negative (256 MiB here).
+pragmas = [
+  "journal_mode = WAL",
+  "synchronous = FULL",
+  "cache_size = -262144",
+  "temp_store = MEMORY",
+]
+
+# Run once per measurement table before loading.
+create_table = """
+CREATE TABLE {table} (
+  time    INTEGER NOT NULL,
+  tags_id INTEGER NOT NULL,
+  {field_columns}
+);
+"""
+
+setup = """
+CREATE INDEX {table}_tags_id_time ON {table} (tags_id, time DESC);
+CREATE INDEX {table}_time ON {table} (time DESC);
+"""
+
+# Run once per measurement table after loading (not part of the ingest time).
+post_load = """
+ANALYZE {table};
+ANALYZE tags;
+"""
+
+# No compression step for a plain table.
+compress = ""
+
+# Bucket expression used by the queries. {width} is an integer in time_unit.
+bucket = "({time} / {width}) * {width}"
