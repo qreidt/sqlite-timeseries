@@ -1,0 +1,30 @@
+# Root of the Cargo workspace. A "workspace" groups crates so they share one
+# build directory (target/) and one lockfile (Cargo.lock).
+[workspace]
+members = ["crates/timeseries"]
+# These have their own Cargo.toml and [workspace] and are built separately.
+exclude = ["benchmark/harness", "docs/spikes"]
+resolver = "3"
+
+# Settings shared by every crate in the workspace (crates opt in with `x.workspace = true`).
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+# Oldest Rust compiler the code must build with (edition 2024 needs 1.85).
+rust-version = "1.85"
+publish = false
+
+[workspace.lints.rust]
+# Inside an `unsafe fn`, each unsafe operation still needs its own `unsafe {}` block.
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+# Every `unsafe {}` block needs a `// SAFETY:` comment explaining why it is sound.
+undocumented_unsafe_blocks = "warn"
+# `.unwrap()` panics on error; a panic must never reach SQLite (NF-11).
+unwrap_used = "warn"
+
+[profile.release]
+lto = "thin"
+# Keep unwinding so panics can be caught at the FFI boundary (NF-11).
+panic = "unwind"

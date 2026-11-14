@@ -24,6 +24,7 @@ Requirements for a SQLite loadable extension, written in Rust, that brings Times
 | 14 | [Open decisions](14-open-decisions.md) | Choices still open, with proposed defaults |
 | 15 | [Risks to spike first](15-risks.md) | Assumptions to test before building |
 | — | [Decision records](decisions/README.md) | One record per decision, with the Linear ticket that settles it |
+| — | [Spikes](spikes/README.md) | Phase 0 experiments, one folder per risk, with results and verdicts |
 | — | [References](references.md) | Sources behind the facts in these documents |
 
 Work is tracked in the Linear project [SQLite Time-Series Extension](https://linear.app/cqr/project/sqlite-time-series-extension-1c6ca96e21da).

@@ -1,0 +1,17 @@
+# Rust build output (the benchmark harness has its own .gitignore)
+/target/
+/docs/spikes/*/target/
+
+# Scratch databases and their block directories / journals
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Editors and OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store

@@ -1,0 +1,5 @@
+# Which Rust compiler rustup uses in this repository. "stable" follows the latest
+# stable release; run `rustup update` to get it.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
